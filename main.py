@@ -8,7 +8,7 @@ CHORD_SHAPES_GUITAR = {
     "Gmaj": {"pos": [3, 2, 0, 0, 0, 3], "fretStart": 1},
     "Dmaj": {"pos": [-1, -1, 0, 2, 3, 2], "fretStart": 1},
     "Amin": {"pos": [-1, 0, 2, 2, 1, 0], "fretStart": 1},
-    "Emin": {"pos": [0, 2, 2, 0, 0, 0], "fretStart": 1},
+    "Emin": {"pos": [0, 2, 2, 0, 0, 0], "fretStart": 1}
 }
 def _parse_pos_csv(pos: str) -> List[int]:
     return [int(x.strip()) for x in pos.split(",")]
