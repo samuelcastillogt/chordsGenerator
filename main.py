@@ -3,13 +3,105 @@ from typing import List, Optional
 import hashlib
 
 app = FastAPI(title="Chord Renderer", version="1.0")
-CHORD_SHAPES_GUITAR = {
-    "Cmaj": {"pos": [-1, 3, 2, 0, 1, 0], "fretStart": 1},
-    "Gmaj": {"pos": [3, 2, 0, 0, 0, 3], "fretStart": 1},
-    "Dmaj": {"pos": [-1, -1, 0, 2, 3, 2], "fretStart": 1},
-    "Amin": {"pos": [-1, 0, 2, 2, 1, 0], "fretStart": 1},
-    "Emin": {"pos": [0, 2, 2, 0, 0, 0], "fretStart": 1},
-}
+
+def _calc_fret_start(positions: List[int]) -> int:
+    positives = [p for p in positions if p > 0]
+    if not positives:
+        return 1
+    min_pos = min(positives)
+    return 1 if min_pos <= 4 else min_pos - 1
+
+
+def _transpose_shape(template: List[int], root_fret: int) -> List[int]:
+    out = []
+    for p in template:
+        if p < 0:
+            out.append(-1)
+        else:
+            out.append(p + root_fret)
+    return out
+
+
+def _build_all_guitar_chords() -> dict:
+    # Templates are open shapes; for non-zero root fret they become movable/barre shapes.
+    e_form_templates = {
+        "maj": [0, 2, 2, 1, 0, 0],
+        "min": [0, 2, 2, 0, 0, 0],
+        "7": [0, 2, 0, 1, 0, 0],
+        "maj7": [0, 2, 1, 1, 0, 0],
+        "min7": [0, 2, 0, 0, 0, 0],
+        "sus2": [0, 2, 2, 4, 0, 0],
+        "sus4": [0, 2, 2, 2, 0, 0],
+        "dim": [0, 1, 2, 0, 2, 0],
+        "aug": [0, 3, 2, 1, 1, 0],
+    }
+    a_form_templates = {
+        "maj": [-1, 0, 2, 2, 2, 0],
+        "min": [-1, 0, 2, 2, 1, 0],
+        "7": [-1, 0, 2, 0, 2, 0],
+        "maj7": [-1, 0, 2, 1, 2, 0],
+        "min7": [-1, 0, 2, 0, 1, 0],
+        "sus2": [-1, 0, 2, 2, 0, 0],
+        "sus4": [-1, 0, 2, 2, 3, 0],
+        "dim": [-1, 0, 1, 2, 1, -1],
+        "aug": [-1, 0, 3, 2, 2, 1],
+    }
+
+    # Root fret locations for E-string and A-string root forms.
+    root_to_e_string_fret = {
+        "C": 8,
+        "C#": 9,
+        "D": 10,
+        "D#": 11,
+        "E": 0,
+        "F": 1,
+        "F#": 2,
+        "G": 3,
+        "G#": 4,
+        "A": 5,
+        "A#": 6,
+        "B": 7,
+    }
+    root_to_a_string_fret = {
+        "C": 3,
+        "C#": 4,
+        "D": 5,
+        "D#": 6,
+        "E": 7,
+        "F": 8,
+        "F#": 9,
+        "G": 10,
+        "G#": 11,
+        "A": 0,
+        "A#": 1,
+        "B": 2,
+    }
+
+    # Use lower-position forms by default for better readability.
+    use_a_form_for = {"A", "A#", "B", "C", "C#", "D", "D#"}
+    roots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    qualities = ["maj", "min", "7", "maj7", "min7", "sus2", "sus4", "dim", "aug"]
+
+    chords = {}
+    for root in roots:
+        for quality in qualities:
+            chord_name = f"{root}{quality}"
+            if root in use_a_form_for:
+                template = a_form_templates[quality]
+                root_fret = root_to_a_string_fret[root]
+            else:
+                template = e_form_templates[quality]
+                root_fret = root_to_e_string_fret[root]
+
+            positions = _transpose_shape(template, root_fret)
+            chords[chord_name] = {
+                "pos": positions,
+                "fretStart": _calc_fret_start(positions),
+            }
+    return chords
+
+
+CHORD_SHAPES_GUITAR = _build_all_guitar_chords()
 def _parse_pos_csv(pos: str) -> List[int]:
     return [int(x.strip()) for x in pos.split(",")]
 
