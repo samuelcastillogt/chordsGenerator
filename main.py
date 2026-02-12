@@ -210,6 +210,52 @@ def render_guitar_svg(
     svg.append("</svg>")
     return "\n".join(svg)
 
+
+def _extract_inner_svg(svg_text: str) -> str:
+    start = svg_text.find(">")
+    end = svg_text.rfind("</svg>")
+    if start == -1 or end == -1 or end <= start:
+        return svg_text
+    return svg_text[start + 1:end]
+
+
+def render_guitar_chords_sheet_svg(chords: List[str], columns: int = 4) -> str:
+    if not chords:
+        raise ValueError("chords list cannot be empty")
+    if columns <= 0:
+        raise ValueError("columns must be greater than 0")
+
+    cell_w, cell_h = 260, 360
+    gap_x, gap_y = 20, 24
+    rows = (len(chords) + columns - 1) // columns
+
+    total_w = columns * cell_w + (columns + 1) * gap_x
+    total_h = rows * cell_h + (rows + 1) * gap_y
+
+    svg = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{total_w}" height="{total_h}" viewBox="0 0 {total_w} {total_h}">',
+        '<rect width="100%" height="100%" fill="white"/>',
+    ]
+
+    for idx, chord in enumerate(chords):
+        shape = CHORD_SHAPES_GUITAR[chord]
+        row = idx // columns
+        col = idx % columns
+        tx = gap_x + col * (cell_w + gap_x)
+        ty = gap_y + row * (cell_h + gap_y)
+
+        single_svg = render_guitar_svg(
+            name=chord,
+            positions=shape["pos"],
+            fret_start=shape.get("fretStart", 1),
+        )
+        inner = _extract_inner_svg(single_svg)
+        svg.append(f'<g transform="translate({tx},{ty})">{inner}</g>')
+
+    svg.append("</svg>")
+    return "\n".join(svg)
+
+
 def etag_for(payload: str) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -277,3 +323,36 @@ def chord_svg_guitar(chord: str):
         fret_start=shape.get("fretStart", 1),
     )
     return Response(content=svg, media_type="image/svg+xml")
+
+
+@app.post("/v1/chords/guitar.svg")
+def chord_svg_guitar_batch(payload: dict = Body(...)):
+    chords = payload.get("chords", [])
+    columns = int(payload.get("columns", 4))
+
+    if not isinstance(chords, list) or not chords:
+        return Response(
+            content="Payload must include a non-empty 'chords' list",
+            status_code=400,
+            media_type="text/plain",
+        )
+
+    missing = [c for c in chords if c not in CHORD_SHAPES_GUITAR]
+    if missing:
+        return Response(
+            content=f"Chord(s) not found: {', '.join(missing)}",
+            status_code=404,
+            media_type="text/plain",
+        )
+
+    try:
+        svg = render_guitar_chords_sheet_svg(chords=chords, columns=columns)
+    except ValueError as exc:
+        return Response(content=str(exc), status_code=400, media_type="text/plain")
+
+    et = etag_for(svg)
+    headers = {
+        "Cache-Control": "public, max-age=86400",
+        "ETag": et,
+    }
+    return Response(content=svg, media_type="image/svg+xml", headers=headers)
