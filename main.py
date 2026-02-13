@@ -145,6 +145,7 @@ def render_guitar_svg(
         rel = fret_number - fret_start
         return margin_top + (rel + 0.5) * fret_gap
 
+
     # Start SVG
     svg = []
     svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
